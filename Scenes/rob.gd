@@ -6,32 +6,47 @@ const JUMP_VELOCITY = -600.0
 @onready var anim = $AnimationPlayer
 
 var jump_finished = false
+var is_active = false
 
 func _physics_process(delta: float) -> void:
-	# Gravidade
+	# ✅ Gravidade sempre ativa
 	if not is_on_floor():
 		velocity += get_gravity() * delta
 
-	var direction := Input.get_axis("ui_left", "ui_right")
+	var direction := 0
 
-	# Pulo
-	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
-		velocity.y = JUMP_VELOCITY
-		jump_finished = false # reseta o estado
+	# ✅ Input só se ativo
+	if is_active:
+		direction = Input.get_axis("ui_left", "ui_right")
 
-	# Movimento horizontal
-	if direction:
-		velocity.x = direction * SPEED
-		$Sprite2D.flip_h = direction < 0
+		if Input.is_action_just_pressed("ui_accept") and is_on_floor():
+			velocity.y = JUMP_VELOCITY
+			jump_finished = false
 	else:
+		# desacelera suavemente quando inativo
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 
+	# ✅ Movimento horizontal
+	if direction != 0:
+		velocity.x = direction * SPEED
+		$Sprite2D.flip_h = direction < 0
+	elif is_active:
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+
+	# ✅ SEMPRE chama isso
 	move_and_slide()
 
-	# 🎬 ANIMAÇÃO
+	# 🎬 ANIMAÇÃO (corrigida)
+	update_animation(direction)
+
+
+func update_animation(direction):
+	# 🔥 Reset do jump quando toca o chão
+	if is_on_floor():
+		jump_finished = false
+
 	if not is_on_floor():
-		if not jump_finished:
-			play_anim("Jump")
+		play_anim("Jump")
 	else:
 		if direction != 0:
 			play_anim("Walk")
@@ -42,9 +57,3 @@ func _physics_process(delta: float) -> void:
 func play_anim(name):
 	if anim.current_animation != name:
 		anim.play(name)
-
-
-func _on_animation_player_animation_finished(anim_name):
-	if anim_name == "Jump":
-		anim.pause()
-		jump_finished = true
