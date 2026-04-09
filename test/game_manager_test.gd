@@ -20,9 +20,9 @@ func after_test() -> void:
 func test_estado_inicial_e_menu() -> void:
 	assert_that(gm.current_state).is_equal(gm.GameState.MENU)
 
-func test_inicio_com_3_vidas() -> void:
+func test_inicio_com_4_vidas() -> void:
 	gm.start_game()
-	assert_that(gm.lives).is_equal(3)
+	assert_that(gm.lives).is_equal(4)
 
 func test_inicia_na_fase_1() -> void:
 	gm.start_game()
@@ -68,10 +68,11 @@ func test_dados_da_fase_1_existem() -> void:
 func test_perder_vida_diminui_contador() -> void:
 	gm.start_game()
 	gm.lose_life()
-	assert_that(gm.lives).is_equal(2)
+	assert_that(gm.lives).is_equal(3)
 
 func test_perder_todas_as_vidas_retorna_false() -> void:
 	gm.start_game()
+	gm.lose_life()
 	gm.lose_life()
 	gm.lose_life()
 	var ainda_vivo := gm.lose_life()
@@ -83,5 +84,5 @@ func test_reset_restaura_estado_inicial() -> void:
 	gm.lose_life()
 	gm.reset_game()
 	assert_that(gm.current_level_index).is_equal(0)
-	assert_that(gm.lives).is_equal(3)
+	assert_that(gm.lives).is_equal(4)
 	assert_that(gm.current_state).is_equal(gm.GameState.MENU)

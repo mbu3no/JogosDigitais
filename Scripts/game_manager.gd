@@ -8,7 +8,7 @@ enum GameState { MENU, PLAYING, PAUSED, GAME_OVER, GAME_COMPLETE }
 
 var current_state:       GameState = GameState.MENU
 var current_level_index: int       = 0
-var lives:               int       = 3
+var lives:               int       = 4
 
 signal level_changed(level_index: int)
 signal state_changed(new_state: GameState)
@@ -55,12 +55,12 @@ func lose_life() -> bool:
 
 func start_game() -> void:
 	current_level_index = 0
-	lives               = 3
+	lives               = 4
 	current_state       = GameState.PLAYING
 	lives_changed.emit(lives)
 	state_changed.emit(current_state)
 
 func reset_game() -> void:
 	current_level_index = 0
-	lives               = 3
+	lives               = 4
 	current_state       = GameState.MENU
