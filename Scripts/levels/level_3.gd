@@ -2,38 +2,45 @@ extends RefCounted
 class_name Level3Data
 
 ## Fase 3 - Telhados
-## Gravidade pesada compensada por pulos mais altos.
+## Gravidade moderada com pulo mais alto. Dificuldade intermediaria.
 
 static func get_data() -> Dictionary:
 	return {
 		"name": "Telhados",
-		"description": "Gravidade pesada, mas seus pulos são mais fortes!",
-		"modifier_hint": "Gravidade Alta  +  Pulo Forte",
-		"bg_color": Color(0.08, 0.06, 0.15),
-		"platform_color": Color(0.55, 0.3, 0.25),
+		"description": "Ele está nos telhados! Pule alto e cuidado com a queda rápida!",
+		"modifier_hint": "Gravidade Elevada  +  Pulo Forte",
+		"bg_color":       Color(0.07, 0.06, 0.14),
+		"platform_color": Color(0.56, 0.30, 0.24),
 		"modifiers": {
-			"speed_mult": 1.0,
-			"jump_mult": 1.5,
-			"gravity_mult": 1.7,
-			"friction": 1.0,
-			"air_control": 1.0,
+			"speed_mult":   1.0,
+			"jump_mult":    1.25,
+			"gravity_mult": 1.35,
+			"friction":     1.0,
+			"air_control":  1.0,
 		},
 		"platforms": [
-			[0,    620, 250, 40],
-			[350,  520, 120, 20],
-			[550,  420, 120, 20],
-			[350,  320, 120, 20],
-			[600,  250, 150, 20],
-			[850,  350, 120, 20],
-			[1050, 500, 120, 20],
-			[1250, 400, 150, 20],
-			[1500, 300, 120, 20],
-			[1700, 450, 120, 20],
-			[1900, 620, 250, 40],
+			[0,    620, 280, 28],
+			[360,  520, 120, 18],
+			[560,  420, 110, 18],
+			[760,  520, 120, 18],
+			[970,  420, 100, 18],
+			[1150, 545, 210, 22],   # CHECKPOINT
+			[1440, 440, 120, 18],
+			[1640, 340, 110, 18],
+			[1840, 440, 120, 18],
+			[2040, 545, 120, 18],
+			[2230, 620, 360, 28],
 		],
-		"exit_pos":   [2050, 580],
-		"spawn_rob":  [60,   560],
-		"spawn_bog":  [140,  560],
-		"loopy_start":[1950, 580],
-		"loopy_end":  [2300, 580],
+		"checkpoints": [
+			[1210, 520],
+		],
+		"hazards": [
+			[480, 592, 50, 22],
+			[870, 592, 70, 22],
+		],
+		"exit_pos":    [2510, 580],
+		"spawn_rob":   [60,   560],
+		"spawn_bog":   [150,  560],
+		"loopy_start": [2360, 572],
+		"loopy_end":   [2780, 572],
 	}

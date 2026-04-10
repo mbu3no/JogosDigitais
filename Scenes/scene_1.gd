@@ -1,8 +1,7 @@
 extends Node2D
 
 ## Cena principal - Lost & Loopy
-## Gerencia plataformas, personagens, camera, Loopy e transicoes de nivel.
-## A HUD e os overlays de intro/fade estao em Scripts/hud.gd
+## Gerencia plataformas, personagens, camera, Loopy, checkpoints, hazards e transicoes.
 
 @onready var rob:    CharacterBase = $Rob
 @onready var bog:    CharacterBase = $Bog
@@ -17,7 +16,12 @@ var loopy_body:    CharacterBody2D = null
 var loopy_start:   Vector2
 var loopy_end:     Vector2
 var loopy_fleeing: bool = false
-const LOOPY_SPEED: float = 80.0
+const LOOPY_SPEED: float = 90.0
+
+# Checkpoints
+var checkpoint_rob: Vector2 = Vector2.ZERO
+var checkpoint_bog: Vector2 = Vector2.ZERO
+var has_checkpoint: bool    = false
 
 # Background dinamico
 var bg_rect: ColorRect
@@ -25,7 +29,7 @@ var bg_rect: ColorRect
 # Tela de vitoria
 var victory_overlay: ColorRect = null
 
-const DEATH_Y: float = 900.0
+const DEATH_Y: float = 950.0
 
 # ============================================================
 # INICIALIZACAO
@@ -48,6 +52,7 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	_update_loopy(delta)
 	_check_death()
+	hud.update_ability(rob.get_ability_ratio(), bog.get_ability_ratio())
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("switch_character") and not hud.showing_intro and not hud.fading:
@@ -70,22 +75,36 @@ func _load_level() -> void:
 	var level := GameManager.get_current_level()
 	var idx   := GameManager.current_level_index
 
-	# Aplicar modificadores e reviver personagens
 	rob.apply_modifiers(level["modifiers"])
 	bog.apply_modifiers(level["modifiers"])
 	rob.revive()
 	bog.revive()
 
-	# Posicionar personagens
-	rob.global_position = Vector2(level["spawn_rob"][0], level["spawn_rob"][1])
-	bog.global_position = Vector2(level["spawn_bog"][0], level["spawn_bog"][1])
-	rob.velocity        = Vector2.ZERO
-	bog.velocity        = Vector2.ZERO
+	# Posicionar nos spawns (sobrescreve com checkpoint se existir)
+	var spawn_r := Vector2(level["spawn_rob"][0], level["spawn_rob"][1])
+	var spawn_b := Vector2(level["spawn_bog"][0], level["spawn_bog"][1])
 
-	# Criar geometria da fase
+	if has_checkpoint:
+		rob.global_position = checkpoint_rob
+		bog.global_position = checkpoint_bog
+	else:
+		rob.global_position = spawn_r
+		bog.global_position = spawn_b
+
+	rob.velocity = Vector2.ZERO
+	bog.velocity = Vector2.ZERO
+
+	# Geometria
 	bg_rect.color = level["bg_color"]
+	_create_scenery(idx)
 	for p in level["platforms"]:
 		_create_platform(p[0], p[1], p[2], p[3], level["platform_color"])
+
+	# Checkpoints e hazards
+	for cp in level.get("checkpoints", []):
+		_create_checkpoint(cp[0], cp[1])
+	for h in level.get("hazards", []):
+		_create_hazard(h[0], h[1], h[2], h[3])
 
 	_create_level_exit(Vector2(level["exit_pos"][0], level["exit_pos"][1]))
 
@@ -93,7 +112,6 @@ func _load_level() -> void:
 	loopy_end   = Vector2(level["loopy_end"][0],   level["loopy_end"][1])
 	_create_loopy(loopy_start)
 
-	# Camera e HUD
 	camera.global_position = current_character.global_position
 	hud.update_level_info(level, idx, GameManager.get_level_count())
 	hud.update_character(current_character == rob)
@@ -122,7 +140,7 @@ func _create_platform(x: float, y: float, w: float, h: float, color: Color) -> v
 
 	var shape := CollisionShape2D.new()
 	var rect  := RectangleShape2D.new()
-	rect.size  = Vector2(w, h)
+	rect.size   = Vector2(w, h)
 	shape.shape = rect
 	body.add_child(shape)
 
@@ -142,6 +160,112 @@ func _create_platform(x: float, y: float, w: float, h: float, color: Color) -> v
 	level_nodes.append(body)
 
 # ============================================================
+# CHECKPOINTS
+# ============================================================
+
+func _create_checkpoint(x: float, y: float) -> void:
+	var area := Area2D.new()
+	area.position = Vector2(x, y)
+	area.set_meta("activated", false)
+
+	var shape := CollisionShape2D.new()
+	var rect  := RectangleShape2D.new()
+	rect.size   = Vector2(28, 64)
+	shape.shape = rect
+	area.add_child(shape)
+
+	# Haste da bandeira
+	var pole := ColorRect.new()
+	pole.size     = Vector2(4, 58)
+	pole.position = Vector2(-2, -62)
+	pole.color    = Color(0.75, 0.75, 0.78)
+	area.add_child(pole)
+
+	# Bandeira (amarela = inativa)
+	var flag := ColorRect.new()
+	flag.size     = Vector2(22, 14)
+	flag.position = Vector2(2, -62)
+	flag.color    = Color(0.92, 0.82, 0.12)
+	flag.name     = "Flag"
+	area.add_child(flag)
+
+	# "CP"
+	var lbl := Label.new()
+	lbl.text     = "CP"
+	lbl.position = Vector2(-11, -80)
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", Color(0.92, 0.82, 0.12, 0.85))
+	area.add_child(lbl)
+
+	area.collision_layer = 0
+	area.collision_mask  = 1
+	area.body_entered.connect(_on_checkpoint_entered.bind(area))
+
+	add_child(area)
+	level_nodes.append(area)
+
+func _on_checkpoint_entered(body: Node, area: Area2D) -> void:
+	if body != rob and body != bog:
+		return
+	if area.get_meta("activated", false):
+		return
+	area.set_meta("activated", true)
+
+	# Salvar posicoes
+	checkpoint_rob = rob.global_position
+	checkpoint_bog = bog.global_position
+	has_checkpoint = true
+
+	# Bandeira vira verde
+	var flag := area.get_node_or_null("Flag")
+	if flag:
+		flag.color = Color(0.20, 0.90, 0.35)
+
+	hud.show_checkpoint_notification()
+
+# ============================================================
+# HAZARDS (ZONAS DE MORTE)
+# ============================================================
+
+func _create_hazard(x: float, y: float, w: float, h: float) -> void:
+	var area := Area2D.new()
+	area.position = Vector2(x + w / 2.0, y + h / 2.0)
+
+	var shape := CollisionShape2D.new()
+	var rect  := RectangleShape2D.new()
+	rect.size   = Vector2(w, h)
+	shape.shape = rect
+	area.add_child(shape)
+
+	# Fundo vermelho
+	var visual := ColorRect.new()
+	visual.size     = Vector2(w, h)
+	visual.position = Vector2(-w / 2.0, -h / 2.0)
+	visual.color    = Color(0.75, 0.10, 0.10, 0.82)
+	area.add_child(visual)
+
+	# Espinhos visuais (triângulos simulados com labels)
+	var n_spikes := int(w / 16)
+	for i in range(n_spikes):
+		var sp := Label.new()
+		sp.text     = "▲"
+		sp.position = Vector2(-w / 2.0 + i * 16, -h / 2.0 - 4)
+		sp.add_theme_font_size_override("font_size", 13)
+		sp.add_theme_color_override("font_color", Color(1.0, 0.30, 0.30))
+		area.add_child(sp)
+
+	area.collision_layer = 0
+	area.collision_mask  = 1
+	area.body_entered.connect(_on_hazard_entered)
+
+	add_child(area)
+	level_nodes.append(area)
+
+func _on_hazard_entered(body: Node) -> void:
+	if body == current_character and not hud.fading and not hud.showing_intro:
+		_on_player_died()
+
+# ============================================================
 # SAIDA DA FASE
 # ============================================================
 
@@ -157,9 +281,9 @@ func _create_level_exit(pos: Vector2) -> void:
 	area.add_child(shape)
 
 	var glow := ColorRect.new()
-	glow.size     = Vector2(44, 64)
-	glow.position = Vector2(-22, -32)
-	glow.color    = Color(0.3, 1.0, 0.4, 0.25)
+	glow.size     = Vector2(48, 68)
+	glow.position = Vector2(-24, -34)
+	glow.color    = Color(0.3, 1.0, 0.4, 0.22)
 	area.add_child(glow)
 
 	var visual := ColorRect.new()
@@ -196,9 +320,9 @@ func _create_loopy(pos: Vector2) -> void:
 
 	var shape := CollisionShape2D.new()
 	var rect  := RectangleShape2D.new()
-	rect.size        = Vector2(24, 50)
-	shape.shape      = rect
-	shape.position   = Vector2(0, 25)
+	rect.size      = Vector2(24, 50)
+	shape.shape    = rect
+	shape.position = Vector2(0, 25)
 	loopy_body.add_child(shape)
 
 	var visual := ColorRect.new()
@@ -209,14 +333,14 @@ func _create_loopy(pos: Vector2) -> void:
 
 	var question := Label.new()
 	question.text     = "?"
-	question.position = Vector2(-6, -20)
+	question.position = Vector2(-6, -22)
 	question.add_theme_font_size_override("font_size", 22)
 	question.add_theme_color_override("font_color", Color(1, 0.9, 0.3))
 	loopy_body.add_child(question)
 
 	var name_lbl := Label.new()
 	name_lbl.text     = "Loopy"
-	name_lbl.position = Vector2(-20, -38)
+	name_lbl.position = Vector2(-20, -40)
 	name_lbl.add_theme_font_size_override("font_size", 12)
 	name_lbl.add_theme_color_override("font_color", Color(1, 0.9, 0.4, 0.7))
 	loopy_body.add_child(name_lbl)
@@ -229,12 +353,12 @@ func _update_loopy(delta: float) -> void:
 		return
 
 	var dist := loopy_body.global_position.distance_to(current_character.global_position)
-	if dist < 300:
+	if dist < 320:
 		loopy_fleeing = true
 
 	if loopy_fleeing:
 		var dir := (loopy_end - loopy_body.global_position).normalized()
-		loopy_body.velocity.x = dir.x * LOOPY_SPEED * 1.5
+		loopy_body.velocity.x = dir.x * LOOPY_SPEED * 1.6
 		if not loopy_body.is_on_floor():
 			loopy_body.velocity += loopy_body.get_gravity() * delta
 		loopy_body.move_and_slide()
@@ -242,7 +366,7 @@ func _update_loopy(delta: float) -> void:
 			loopy_body.queue_free()
 			loopy_body = null
 	else:
-		loopy_body.velocity.x = sin(Time.get_ticks_msec() * 0.002) * 30.0
+		loopy_body.velocity.x = sin(Time.get_ticks_msec() * 0.002) * 28.0
 		if not loopy_body.is_on_floor():
 			loopy_body.velocity += loopy_body.get_gravity() * delta
 		loopy_body.move_and_slide()
@@ -274,7 +398,7 @@ func _switch_character() -> void:
 	hud.update_character(current_character == rob)
 
 # ============================================================
-# MORTE (QUEDA)
+# MORTE
 # ============================================================
 
 func _check_death() -> void:
@@ -285,7 +409,6 @@ func _check_death() -> void:
 		_on_player_died()
 		return
 
-	# Reposiciona o personagem inativo se cair
 	var other := bog if current_character == rob else rob
 	if other.global_position.y > DEATH_Y and not other.is_dead:
 		other.global_position = current_character.global_position + Vector2(-40, -20)
@@ -316,8 +439,13 @@ func _complete_level() -> void:
 		_show_victory()
 
 func _load_next_level() -> void:
+	has_checkpoint = false
 	_setup_characters()
 	_load_level()
+
+# ============================================================
+# VITORIA - LOOPY VOLTA A CONSCIENCIA
+# ============================================================
 
 func _show_victory() -> void:
 	if victory_overlay:
@@ -325,43 +453,48 @@ func _show_victory() -> void:
 
 	victory_overlay       = ColorRect.new()
 	victory_overlay.size  = Vector2(1152, 648)
-	victory_overlay.color = Color(0.02, 0.04, 0.08, 0.90)
-
-	var vbox := VBoxContainer.new()
-	vbox.position = Vector2(200, 180)
-	vbox.size     = Vector2(752, 320)
-	vbox.add_theme_constant_override("separation", 18)
-
-	var title := Label.new()
-	title.text                 = "Você encontrou o Loopy!"
-	title.size                 = Vector2(752, 0)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 46)
-	title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
-	vbox.add_child(title)
-
-	var sub := Label.new()
-	sub.text                 = "Os três amigos estão juntos novamente."
-	sub.size                 = Vector2(752, 0)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 22)
-	sub.add_theme_color_override("font_color", Color(0.80, 0.80, 0.90))
-	vbox.add_child(sub)
-
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 30)
-	vbox.add_child(spacer)
-
-	var hint := Label.new()
-	hint.text                 = "Pressione  ESPAÇO  para voltar ao menu"
-	hint.size                 = Vector2(752, 0)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_font_size_override("font_size", 17)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.62))
-	vbox.add_child(hint)
-
-	victory_overlay.add_child(vbox)
+	victory_overlay.color = Color(0.02, 0.04, 0.08, 0.94)
 	hud.add_child(victory_overlay)
+
+	_run_victory_sequence()
+
+func _add_victory_label(txt: String, y: float, fs: int, col: Color) -> void:
+	var lbl := Label.new()
+	lbl.text                 = txt
+	lbl.position            = Vector2(80, y)
+	lbl.size                 = Vector2(992, 58)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", fs)
+	lbl.add_theme_color_override("font_color", col)
+	lbl.modulate.a = 0.0
+	victory_overlay.add_child(lbl)
+	var tw := create_tween()
+	tw.tween_property(lbl, "modulate:a", 1.0, 0.55)
+
+func _run_victory_sequence() -> void:
+	# Linha 1 - imediata
+	_add_victory_label("Você alcançou o Loopy!", 130, 50, Color(0.28, 1.0, 0.42))
+	await get_tree().create_timer(1.6).timeout
+
+	_add_victory_label("Loopy para no meio da rua...", 220, 22, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.5).timeout
+
+	_add_victory_label("Ele olha ao redor, confuso.", 258, 22, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.5).timeout
+
+	_add_victory_label("Seus olhos focam lentamente...", 296, 22, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.8).timeout
+
+	_add_victory_label("— Rob?  Bog?  O que aconteceu?  Onde eu estava? —", 358, 22, Color(1.0, 0.92, 0.38))
+	await get_tree().create_timer(1.8).timeout
+
+	_add_victory_label("O efeito do chá foi embora.", 402, 18, Color(0.70, 0.70, 0.82))
+	await get_tree().create_timer(1.4).timeout
+
+	_add_victory_label("Os três amigos estão juntos novamente!", 452, 30, Color(0.95, 0.95, 1.0))
+	await get_tree().create_timer(1.2).timeout
+
+	_add_victory_label("Pressione  ESPAÇO  para voltar ao menu", 526, 17, Color(0.48, 0.48, 0.60))
 
 	await get_tree().create_timer(0.5).timeout
 	_wait_for_menu_input()
@@ -374,12 +507,209 @@ func _wait_for_menu_input() -> void:
 			return
 
 # ============================================================
+# CENARIO URBANO DE FUNDO
+# ============================================================
+
+func _create_scenery(idx: int) -> void:
+	const LEVEL_W := 3600.0
+
+	# Paletas de edificios por fase
+	var palettes: Array = [
+		[Color(0.52, 0.60, 0.72), Color(0.76, 0.46, 0.30), Color(0.82, 0.74, 0.58)],  # ruas - dia
+		[Color(0.48, 0.62, 0.80), Color(0.60, 0.78, 0.90), Color(0.44, 0.60, 0.74)],  # praca - gelo
+		[Color(0.30, 0.24, 0.20), Color(0.24, 0.18, 0.14), Color(0.38, 0.28, 0.22)],  # telhados - noite
+		[Color(0.20, 0.20, 0.18), Color(0.16, 0.16, 0.14), Color(0.24, 0.24, 0.20)],  # becos - escuro
+		[Color(0.62, 0.40, 0.22), Color(0.50, 0.32, 0.18), Color(0.70, 0.48, 0.26)],  # final - por do sol
+	]
+	var palette: Array = palettes[clamp(idx, 0, palettes.size() - 1)]
+
+	# Cor do ceu por fase
+	var sky_colors: Array = [
+		Color(0.52, 0.76, 0.94),  # azul dia
+		Color(0.44, 0.68, 0.88),  # azul frio
+		Color(0.10, 0.08, 0.18),  # noite
+		Color(0.07, 0.07, 0.10),  # beco escuro
+		Color(0.68, 0.38, 0.14),  # laranja poente
+	]
+	var sky_col: Color = sky_colors[clamp(idx, 0, sky_colors.size() - 1)]
+
+	# Ceu
+	var sky := ColorRect.new()
+	sky.position = Vector2(-600, -500)
+	sky.size     = Vector2(LEVEL_W + 1200, 1200)
+	sky.color    = sky_col
+	sky.z_index  = -80
+	add_child(sky)
+	level_nodes.append(sky)
+
+	# Nuvens (fases ao ar livre)
+	if idx <= 1:
+		var cx_arr := [-200.0, 380.0, 820.0, 1320.0, 1900.0, 2480.0, 3060.0]
+		var cy_arr := [60.0, 90.0, 45.0, 110.0, 70.0, 95.0, 55.0]
+		for ci in range(cx_arr.size()):
+			var cloud := ColorRect.new()
+			cloud.position = Vector2(cx_arr[ci], cy_arr[ci])
+			cloud.size     = Vector2(110 + (ci % 3) * 38, 28 + (ci % 2) * 14)
+			cloud.color    = Color(1.0, 1.0, 1.0, 0.82)
+			cloud.z_index  = -72
+			add_child(cloud)
+			level_nodes.append(cloud)
+
+	# Edificios de fundo
+	var bx       := -400.0
+	var b_idx    := 0
+	var win_col  := Color(0.96, 0.88, 0.52, 0.70)
+	if idx == 3:
+		win_col = Color(0.32, 0.28, 0.10, 0.45)
+	elif idx == 4:
+		win_col = Color(1.0, 0.62, 0.18, 0.60)
+
+	while bx < LEVEL_W + 200:
+		var bw := 110.0 + (b_idx % 5) * 20.0
+		var bh := 190.0 + (b_idx % 7) * 26.0
+		var bc := palette[b_idx % palette.size()]
+
+		var bld := ColorRect.new()
+		bld.position = Vector2(bx, 620 - bh)
+		bld.size     = Vector2(bw, bh)
+		bld.color    = bc
+		bld.z_index  = -52
+		add_child(bld)
+		level_nodes.append(bld)
+
+		# Janelas (2 colunas x 3 linhas)
+		for wr in range(3):
+			for wc in range(2):
+				var wx := bx + 14 + wc * (bw * 0.55)
+				var wy := 620 - bh + 18 + wr * 52
+				var win := ColorRect.new()
+				win.position = Vector2(wx, wy)
+				win.size     = Vector2(15, 18)
+				win.color    = win_col
+				win.z_index  = -51
+				add_child(win)
+				level_nodes.append(win)
+
+		bx    += bw + 10 + (b_idx % 3) * 18
+		b_idx += 1
+
+	# Arvores (fases ao ar livre)
+	if idx <= 1:
+		for tx in [200.0, 580.0, 980.0, 1440.0, 1820.0, 2260.0, 2700.0]:
+			_create_tree(tx, 620)
+
+	# Props: placa "Café Loop" na fase 1
+	if idx == 0:
+		var awning := ColorRect.new()
+		awning.position = Vector2(-240, 420)
+		awning.size     = Vector2(180, 16)
+		awning.color    = Color(0.82, 0.14, 0.10)
+		awning.z_index  = -42
+		add_child(awning)
+		level_nodes.append(awning)
+
+		var sign_bg := ColorRect.new()
+		sign_bg.position = Vector2(-240, 436)
+		sign_bg.size     = Vector2(180, 52)
+		sign_bg.color    = Color(0.94, 0.88, 0.78)
+		sign_bg.z_index  = -42
+		add_child(sign_bg)
+		level_nodes.append(sign_bg)
+
+		var sign_lbl := Label.new()
+		sign_lbl.text     = "Café Loop"
+		sign_lbl.position = Vector2(-238, 448)
+		sign_lbl.size     = Vector2(176, 30)
+		sign_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sign_lbl.add_theme_font_size_override("font_size", 18)
+		sign_lbl.add_theme_color_override("font_color", Color(0.18, 0.10, 0.05))
+		sign_lbl.z_index = -41
+		add_child(sign_lbl)
+		level_nodes.append(sign_lbl)
+
+		# Hidrante e lixeiras
+		_create_hydrant(340.0, 608.0)
+		_create_trash(760.0, 606.0)
+		_create_trash(1900.0, 606.0)
+
+	# Postes de luz nas ruas
+	if idx <= 1:
+		for px in [500.0, 1100.0, 1700.0, 2300.0, 2900.0]:
+			_create_lamppost(px, 620)
+
+func _create_tree(x: float, gy: float) -> void:
+	var trunk := ColorRect.new()
+	trunk.position = Vector2(x - 6, gy - 46)
+	trunk.size     = Vector2(12, 46)
+	trunk.color    = Color(0.42, 0.26, 0.10)
+	trunk.z_index  = -48
+	add_child(trunk)
+	level_nodes.append(trunk)
+	for layer in range(3):
+		var cw  := 50.0 - layer * 7
+		var cap := ColorRect.new()
+		cap.position = Vector2(x - cw / 2, gy - 46 - 28 - layer * 20)
+		cap.size     = Vector2(cw, 34)
+		cap.color    = Color(0.20 + layer * 0.05, 0.60 - layer * 0.04, 0.20)
+		cap.z_index  = -47
+		add_child(cap)
+		level_nodes.append(cap)
+
+func _create_hydrant(x: float, y: float) -> void:
+	var body := ColorRect.new()
+	body.position = Vector2(x, y)
+	body.size     = Vector2(14, 22)
+	body.color    = Color(0.88, 0.14, 0.10)
+	body.z_index  = -42
+	add_child(body)
+	level_nodes.append(body)
+	var top := ColorRect.new()
+	top.position = Vector2(x - 2, y - 6)
+	top.size     = Vector2(18, 7)
+	top.color    = Color(0.78, 0.10, 0.08)
+	top.z_index  = -41
+	add_child(top)
+	level_nodes.append(top)
+
+func _create_trash(x: float, y: float) -> void:
+	var body := ColorRect.new()
+	body.position = Vector2(x, y)
+	body.size     = Vector2(20, 28)
+	body.color    = Color(0.30, 0.34, 0.30)
+	body.z_index  = -42
+	add_child(body)
+	level_nodes.append(body)
+	var lid := ColorRect.new()
+	lid.position = Vector2(x - 2, y - 6)
+	lid.size     = Vector2(24, 7)
+	lid.color    = Color(0.38, 0.40, 0.36)
+	lid.z_index  = -41
+	add_child(lid)
+	level_nodes.append(lid)
+
+func _create_lamppost(x: float, gy: float) -> void:
+	var pole := ColorRect.new()
+	pole.position = Vector2(x - 2, gy - 120)
+	pole.size     = Vector2(4, 120)
+	pole.color    = Color(0.55, 0.52, 0.50)
+	pole.z_index  = -44
+	add_child(pole)
+	level_nodes.append(pole)
+	var lamp := ColorRect.new()
+	lamp.position = Vector2(x - 10, gy - 128)
+	lamp.size     = Vector2(20, 10)
+	lamp.color    = Color(0.95, 0.90, 0.55, 0.90)
+	lamp.z_index  = -43
+	add_child(lamp)
+	level_nodes.append(lamp)
+
+# ============================================================
 # BACKGROUND
 # ============================================================
 
 func _create_background() -> void:
 	bg_rect          = ColorRect.new()
-	bg_rect.size     = Vector2(5000, 2000)
+	bg_rect.size     = Vector2(6000, 2000)
 	bg_rect.position = Vector2(-1000, -500)
 	bg_rect.color    = Color(0.15, 0.18, 0.28)
 	bg_rect.z_index  = -100

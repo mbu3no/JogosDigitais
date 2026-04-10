@@ -2,38 +2,51 @@ extends RefCounted
 class_name Level5Data
 
 ## Fase 5 - Encontro com Loopy
-## Todos os modificadores combinados. Fase final.
+## Modificadores combinados em nivel desafiador mas justo. Loopy parado no final.
 
 static func get_data() -> Dictionary:
 	return {
 		"name": "Encontro com Loopy",
-		"description": "Tudo junto!  Escorregadio, rápido e pesado!",
-		"modifier_hint": "Velocidade Alta  +  Gelo  +  Gravidade",
-		"bg_color": Color(0.18, 0.12, 0.08),
-		"platform_color": Color(0.7, 0.55, 0.3),
+		"description": "Ali está o Loopy! Ele parou...\nAlcance-o e traga seu amigo de volta!",
+		"modifier_hint": "Velocidade  +  Gelo  +  Gravidade  ·  Tudo junto!",
+		"bg_color":       Color(0.16, 0.10, 0.07),
+		"platform_color": Color(0.70, 0.54, 0.28),
 		"modifiers": {
-			"speed_mult": 1.3,
-			"jump_mult": 1.3,
-			"gravity_mult": 1.4,
-			"friction": 0.15,
-			"air_control": 0.5,
+			"speed_mult":   1.2,
+			"jump_mult":    1.2,
+			"gravity_mult": 1.2,
+			"friction":     0.22,
+			"air_control":  0.65,
 		},
 		"platforms": [
-			[0,    620, 300, 40],
-			[400,  540, 100, 20],
-			[600,  450, 100, 20],
-			[800,  540, 120, 20],
-			[1000, 620, 200, 40],
-			[1300, 520,  80, 20],
-			[1480, 420, 100, 20],
-			[1680, 320, 100, 20],
-			[1880, 420,  80, 20],
-			[2050, 520, 100, 20],
-			[2200, 620, 350, 40],
+			[0,    620, 280, 28],
+			[380,  530, 110, 18],
+			[570,  440, 90,  18],
+			[750,  530, 120, 18],
+			[950,  445, 90,  18],
+			[1130, 560, 200, 22],  # CHECKPOINT 1
+			[1420, 465, 110, 18],
+			[1620, 370, 100, 18],
+			[1820, 465, 110, 18],
+			[2020, 560, 200, 22],  # CHECKPOINT 2
+			[2300, 465, 100, 18],
+			[2490, 375, 90,  18],
+			[2670, 465, 100, 18],
+			[2850, 620, 450, 28],  # Plataforma final — Loopy aqui
 		],
-		"exit_pos":   [2450, 580],
-		"spawn_rob":  [60,   560],
-		"spawn_bog":  [150,  560],
-		"loopy_start":[2300, 580],
-		"loopy_end":  [2300, 580],  # Loopy fica parado no final
+		"checkpoints": [
+			[1190, 535],
+			[2080, 535],
+		],
+		"hazards": [
+			[480, 592, 60, 22],
+			[860, 592, 65, 22],
+			[1540, 592, 55, 22],
+			[2140, 592, 60, 22],
+		],
+		"exit_pos":    [3220, 580],
+		"spawn_rob":   [60,   560],
+		"spawn_bog":   [155,  560],
+		"loopy_start": [3060, 572],
+		"loopy_end":   [3060, 572],
 	}
