@@ -529,32 +529,209 @@ func _add_victory_label(txt: String, y: float, fs: int, col: Color) -> void:
 	tw.tween_property(lbl, "modulate:a", 1.0, 0.55)
 
 func _run_victory_sequence() -> void:
+	# Céu de pôr do sol no topo do overlay
+	_add_victory_sky()
+
 	# Linha 1 - imediata
-	_add_victory_label("Você alcançou o Loopy!", 130, 50, Color(0.28, 1.0, 0.42))
-	await get_tree().create_timer(1.6).timeout
-
-	_add_victory_label("Loopy para no meio da rua...", 220, 22, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.5).timeout
-
-	_add_victory_label("Ele olha ao redor, confuso.", 258, 22, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.5).timeout
-
-	_add_victory_label("Seus olhos focam lentamente...", 296, 22, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.8).timeout
-
-	_add_victory_label("— Rob?  Bog?  O que aconteceu?  Onde eu estava? —", 358, 22, Color(1.0, 0.92, 0.38))
-	await get_tree().create_timer(1.8).timeout
-
-	_add_victory_label("O efeito do chá foi embora.", 402, 18, Color(0.70, 0.70, 0.82))
+	_add_victory_label("Você alcançou o Loopy!", 30, 42, Color(0.28, 1.0, 0.42))
 	await get_tree().create_timer(1.4).timeout
 
-	_add_victory_label("Os três amigos estão juntos novamente!", 452, 30, Color(0.95, 0.95, 1.0))
+	_add_victory_label("Loopy para no meio da rua...", 95, 20, Color(0.78, 0.78, 0.90))
 	await get_tree().create_timer(1.2).timeout
 
-	_add_victory_label("Pressione  ESPAÇO  para voltar ao menu", 526, 17, Color(0.48, 0.48, 0.60))
+	_add_victory_label("Ele olha ao redor, confuso.", 125, 20, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.2).timeout
+
+	_add_victory_label("Seus olhos focam lentamente...", 155, 20, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.5).timeout
+
+	_add_victory_label("— Rob?  Bog?  O que aconteceu?  Onde eu estava? —", 190, 20, Color(1.0, 0.92, 0.38))
+	await get_tree().create_timer(1.6).timeout
+
+	_add_victory_label("O efeito do chá foi embora.", 230, 17, Color(0.70, 0.70, 0.82))
+	await get_tree().create_timer(1.3).timeout
+
+	# ---- Reencontro visual: os três amigos juntos ----
+	_add_reunion_scene()
+	await get_tree().create_timer(0.6).timeout
+
+	_add_victory_label("Os três amigos estão juntos novamente!", 570, 26, Color(0.95, 0.95, 1.0))
+	await get_tree().create_timer(1.0).timeout
+
+	_add_victory_label("Pressione  ESPAÇO  para voltar ao menu", 612, 15, Color(0.48, 0.48, 0.60))
 
 	await get_tree().create_timer(0.5).timeout
 	_wait_for_menu_input()
+
+# ============================================================
+# CENA VISUAL DO REENCONTRO (os 3 amigos juntos)
+# ============================================================
+
+func _add_victory_sky() -> void:
+	# Faixa superior escura (noite)
+	var sky := ColorRect.new()
+	sky.position = Vector2(0, 260)
+	sky.size     = Vector2(1152, 80)
+	sky.color    = Color(0.18, 0.12, 0.28)
+	victory_overlay.add_child(sky)
+	# Faixa pôr-do-sol
+	var dusk := ColorRect.new()
+	dusk.position = Vector2(0, 340)
+	dusk.size     = Vector2(1152, 80)
+	dusk.color    = Color(0.85, 0.45, 0.30)
+	victory_overlay.add_child(dusk)
+	var glow := ColorRect.new()
+	glow.position = Vector2(0, 420)
+	glow.size     = Vector2(1152, 40)
+	glow.color    = Color(0.98, 0.72, 0.35)
+	victory_overlay.add_child(glow)
+
+func _add_reunion_scene() -> void:
+	var scene := Control.new()
+	scene.position = Vector2(0, 0)
+	scene.size     = Vector2(1152, 648)
+	scene.modulate.a = 0.0
+	victory_overlay.add_child(scene)
+
+	# Silhuetas de edifícios ao fundo
+	for i in range(9):
+		var bx := 40 + i * 130
+		var bh := 60 + ((i * 37) % 50)
+		_v_rect(scene, bx, 400 - bh, 110, bh, Color(0.22, 0.18, 0.32))
+		# janelas acesas
+		for jy in range(3):
+			for jx in range(3):
+				if (i + jx + jy) % 3 == 0:
+					_v_rect(scene, bx + 12 + jx * 30, 400 - bh + 10 + jy * 16, 10, 8,
+							Color(1.0, 0.85, 0.45, 0.85))
+
+	# Sol baixo
+	_v_rect(scene, 540, 380, 72, 72, Color(1.0, 0.78, 0.35, 0.9))
+	_v_rect(scene, 520, 400, 112, 36, Color(1.0, 0.62, 0.32, 0.55))
+
+	# Chão
+	_v_rect(scene, 0, 460, 1152, 100, Color(0.22, 0.18, 0.14))
+	_v_rect(scene, 0, 460, 1152, 4,   Color(0.12, 0.10, 0.08))
+	# Linha da calçada
+	_v_rect(scene, 0, 520, 1152, 2, Color(0.35, 0.28, 0.20))
+
+	# Os 3 amigos lado a lado (pés na linha y=560)
+	_draw_rob_sil(scene,   420, 560, 2.0)
+	_draw_loopy_sil(scene, 576, 560, 2.0)
+	_draw_bog_sil(scene,   740, 560, 2.0)
+
+	# Corações e exclamações de alegria
+	_add_heart(scene, 460, 320)
+	_add_heart(scene, 706, 330)
+	_v_label(scene, "♪", 552, 300, 40, Color(1.0, 0.85, 0.45))
+	_v_label(scene, "♫", 640, 290, 36, Color(1.0, 0.75, 0.35))
+
+	# Moldura superior (título da cena)
+	_v_label(scene, "— REENCONTRO —", 0, 290, 26, Color(1.0, 0.88, 0.45), true)
+
+	var tw := create_tween()
+	tw.tween_property(scene, "modulate:a", 1.0, 0.85)
+
+func _v_rect(parent: Node, x: float, y: float, w: float, h: float, col: Color) -> void:
+	var r := ColorRect.new()
+	r.position = Vector2(x, y)
+	r.size     = Vector2(w, h)
+	r.color    = col
+	parent.add_child(r)
+
+func _v_label(parent: Node, txt: String, x: float, y: float, fs: int, col: Color,
+			  center_full: bool = false) -> void:
+	var l := Label.new()
+	l.text     = txt
+	l.position = Vector2(x, y)
+	l.size     = Vector2(1152 if center_full else 60, 50)
+	if center_full:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", col)
+	parent.add_child(l)
+
+func _add_heart(parent: Node, x: float, y: float) -> void:
+	var red := Color(1.0, 0.35, 0.45)
+	_v_rect(parent, x,      y,      10, 14, red)
+	_v_rect(parent, x + 12, y,      10, 14, red)
+	_v_rect(parent, x + 2,  y + 12, 18, 8,  red)
+	_v_rect(parent, x + 6,  y + 18, 10, 6,  red)
+
+# ---- Personagens (silhuetas coloridas simples em ColorRects) ----
+
+func _draw_loopy_sil(parent: Node, cx: float, cy: float, s: float) -> void:
+	# Capa roxa
+	_v_rect(parent, cx - 22 * s, cy - 80 * s, 16 * s, 60 * s, Color(0.42, 0.24, 0.52))
+	_v_rect(parent, cx + 10 * s, cy - 70 * s, 14 * s, 40 * s, Color(0.42, 0.24, 0.52))
+	# Tênis verdes
+	_v_rect(parent, cx - 10 * s, cy - 6  * s, 10 * s, 6  * s, Color(0.36, 0.60, 0.32))
+	_v_rect(parent, cx + 2  * s, cy - 6  * s, 10 * s, 6  * s, Color(0.36, 0.60, 0.32))
+	_v_rect(parent, cx - 10 * s, cy,           10 * s, 2  * s, Color(0.10, 0.08, 0.06))
+	_v_rect(parent, cx + 2  * s, cy,           10 * s, 2  * s, Color(0.10, 0.08, 0.06))
+	# Jeans
+	_v_rect(parent, cx - 9  * s, cy - 26 * s, 8  * s, 20 * s, Color(0.28, 0.38, 0.62))
+	_v_rect(parent, cx + 1  * s, cy - 26 * s, 8  * s, 20 * s, Color(0.28, 0.38, 0.62))
+	# Moletom
+	_v_rect(parent, cx - 13 * s, cy - 58 * s, 26 * s, 34 * s, Color(0.92, 0.74, 0.22))
+	# Braço esq com patinho
+	_v_rect(parent, cx - 18 * s, cy - 55 * s, 6  * s, 18 * s, Color(0.92, 0.74, 0.22))
+	_v_rect(parent, cx - 26 * s, cy - 52 * s, 10 * s, 8  * s, Color(1.00, 0.82, 0.18))
+	_v_rect(parent, cx - 21 * s, cy - 58 * s, 6  * s, 5  * s, Color(1.00, 0.82, 0.18))
+	_v_rect(parent, cx - 30 * s, cy - 54 * s, 3  * s, 2  * s, Color(0.95, 0.55, 0.15))
+	# Cabeça
+	_v_rect(parent, cx - 10 * s, cy - 82 * s, 20 * s, 20 * s, Color(0.96, 0.82, 0.66))
+	# Barba
+	_v_rect(parent, cx - 10 * s, cy - 68 * s, 20 * s, 10 * s, Color(0.48, 0.32, 0.18))
+	# Olho feliz (sorridente)
+	_v_rect(parent, cx - 6  * s, cy - 80 * s, 3  * s, 3  * s, Color.BLACK)
+	_v_rect(parent, cx + 3  * s, cy - 80 * s, 3  * s, 3  * s, Color.BLACK)
+	# Sorriso
+	_v_rect(parent, cx - 4  * s, cy - 72 * s, 8  * s, 1.5 * s, Color(0.6, 0.2, 0.2))
+	# Gorro verde
+	_v_rect(parent, cx - 12 * s, cy - 102 * s, 24 * s, 12 * s, Color(0.32, 0.55, 0.28))
+	_v_rect(parent, cx - 11 * s, cy - 94  * s, 22 * s, 3  * s, Color(0.24, 0.42, 0.20))
+	# Folha
+	_v_rect(parent, cx - 2  * s, cy - 114 * s, 6  * s, 5  * s, Color(0.55, 0.78, 0.30))
+	# Cajado + xícara
+	_v_rect(parent, cx + 16 * s, cy - 110 * s, 3  * s, 110 * s, Color(0.36, 0.22, 0.12))
+	_v_rect(parent, cx + 12 * s, cy - 120 * s, 12 * s, 9  * s, Color(0.96, 0.94, 0.88))
+	_v_rect(parent, cx + 13 * s, cy - 122 * s, 10 * s, 5  * s, Color(0.52, 0.32, 0.18))
+	# Vapor
+	_v_rect(parent, cx + 14 * s, cy - 132 * s, 2  * s, 4  * s, Color(0.85, 0.85, 0.80, 0.7))
+	_v_rect(parent, cx + 18 * s, cy - 136 * s, 2  * s, 5  * s, Color(0.85, 0.85, 0.80, 0.7))
+
+func _draw_rob_sil(parent: Node, cx: float, cy: float, s: float) -> void:
+	var skin := Color(0.98, 0.84, 0.70)
+	_v_rect(parent, cx - 10 * s, cy - 6  * s, 8  * s, 6  * s, Color(0.14, 0.14, 0.18))
+	_v_rect(parent, cx + 2  * s, cy - 6  * s, 8  * s, 6  * s, Color(0.14, 0.14, 0.18))
+	_v_rect(parent, cx - 9  * s, cy - 24 * s, 7  * s, 18 * s, Color(0.22, 0.28, 0.42))
+	_v_rect(parent, cx + 2  * s, cy - 24 * s, 7  * s, 18 * s, Color(0.22, 0.28, 0.42))
+	_v_rect(parent, cx - 12 * s, cy - 48 * s, 24 * s, 24 * s, Color(0.30, 0.65, 1.00))
+	_v_rect(parent, cx - 16 * s, cy - 42 * s, 4  * s, 18 * s, skin)
+	_v_rect(parent, cx + 12 * s, cy - 42 * s, 4  * s, 18 * s, skin)
+	_v_rect(parent, cx - 8  * s, cy - 62 * s, 16 * s, 14 * s, skin)
+	_v_rect(parent, cx - 9  * s, cy - 66 * s, 18 * s, 6  * s, Color(0.22, 0.16, 0.10))
+	_v_rect(parent, cx - 4  * s, cy - 56 * s, 2  * s, 2  * s, Color.BLACK)
+	_v_rect(parent, cx + 2  * s, cy - 56 * s, 2  * s, 2  * s, Color.BLACK)
+	_v_rect(parent, cx - 3  * s, cy - 50 * s, 6  * s, 1.2 * s, Color(0.6, 0.2, 0.2))
+	_v_label(parent, "Rob", cx - 30, cy + 8, 14, Color(0.55, 0.88, 1.0))
+
+func _draw_bog_sil(parent: Node, cx: float, cy: float, s: float) -> void:
+	var skin := Color(0.98, 0.78, 0.62)
+	_v_rect(parent, cx - 12 * s, cy - 6  * s, 10 * s, 6  * s, Color(0.18, 0.14, 0.10))
+	_v_rect(parent, cx + 2  * s, cy - 6  * s, 10 * s, 6  * s, Color(0.18, 0.14, 0.10))
+	_v_rect(parent, cx - 11 * s, cy - 26 * s, 9  * s, 20 * s, Color(0.36, 0.24, 0.14))
+	_v_rect(parent, cx + 2  * s, cy - 26 * s, 9  * s, 20 * s, Color(0.36, 0.24, 0.14))
+	_v_rect(parent, cx - 16 * s, cy - 54 * s, 32 * s, 28 * s, Color(1.00, 0.55, 0.20))
+	_v_rect(parent, cx - 20 * s, cy - 48 * s, 4  * s, 20 * s, skin)
+	_v_rect(parent, cx + 16 * s, cy - 48 * s, 4  * s, 20 * s, skin)
+	_v_rect(parent, cx - 10 * s, cy - 70 * s, 20 * s, 16 * s, skin)
+	_v_rect(parent, cx - 11 * s, cy - 74 * s, 22 * s, 6  * s, Color(0.10, 0.08, 0.06))
+	_v_rect(parent, cx - 5  * s, cy - 62 * s, 2  * s, 2  * s, Color.BLACK)
+	_v_rect(parent, cx + 3  * s, cy - 62 * s, 2  * s, 2  * s, Color.BLACK)
+	_v_rect(parent, cx - 3  * s, cy - 56 * s, 6  * s, 1.2 * s, Color(0.5, 0.2, 0.2))
+	_v_label(parent, "Bog", cx - 30, cy + 8, 14, Color(1.0, 0.65, 0.30))
 
 func _wait_for_menu_input() -> void:
 	while true:

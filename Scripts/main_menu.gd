@@ -228,32 +228,42 @@ func _build_newspaper() -> void:
 	root.add_child(vsep)
 
 	# ---- Coluna direita: foto + box ----
-	# "Foto" do Loopy (placeholder artístico)
+	# Moldura externa (efeito de foto antiga em sépia)
+	var photo_frame := ColorRect.new()
+	photo_frame.position = Vector2(PX + 650, PY + 156)
+	photo_frame.size     = Vector2(332, 222)
+	photo_frame.color    = Color(0.18, 0.14, 0.08)
+	root.add_child(photo_frame)
+
 	var photo := ColorRect.new()
 	photo.position = Vector2(PX + 656, PY + 162)
 	photo.size     = Vector2(320, 210)
-	photo.color    = Color(0.26, 0.24, 0.18)
+	photo.color    = Color(0.82, 0.72, 0.52)  # fundo sépia claro
 	root.add_child(photo)
 
-	# Silhueta do Loopy
-	var sh_body := ColorRect.new()
-	sh_body.position = Vector2(PX + 780, PY + 218)
-	sh_body.size     = Vector2(48, 88)
-	sh_body.color    = Color(0.11, 0.09, 0.07)
-	root.add_child(sh_body)
+	# Chão da foto (tom mais escuro)
+	var photo_ground := ColorRect.new()
+	photo_ground.position = Vector2(PX + 656, PY + 340)
+	photo_ground.size     = Vector2(320, 32)
+	photo_ground.color    = Color(0.60, 0.48, 0.32)
+	root.add_child(photo_ground)
 
-	var sh_head := ColorRect.new()
-	sh_head.position = Vector2(PX + 785, PY + 183)
-	sh_head.size     = Vector2(38, 38)
-	sh_head.color    = Color(0.11, 0.09, 0.07)
-	root.add_child(sh_head)
+	# Loopy detalhado (tons sépia para parecer foto de jornal)
+	_draw_loopy(root, PX + 816, PY + 336, 1.4, true)
 
-	var q_mark := Label.new()
-	q_mark.text     = "?"
-	q_mark.position = Vector2(PX + 828, PY + 183)
-	q_mark.add_theme_font_size_override("font_size", 46)
-	q_mark.add_theme_color_override("font_color", Color(0.88, 0.80, 0.44, 0.50))
-	root.add_child(q_mark)
+	# Cantos da moldura (decoração de foto antiga)
+	for cx in [PX + 652, PX + 970]:
+		for cy in [PY + 158, PY + 368]:
+			var corner := ColorRect.new()
+			corner.position = Vector2(cx, cy)
+			corner.size     = Vector2(10, 10)
+			corner.color    = Color(0.10, 0.08, 0.05)
+			root.add_child(corner)
+
+	# Legenda "FOTO DE ARQUIVO"
+	_nl(root, "· FOTO DE ARQUIVO ·",
+		PX + 656, PY + 164, 320, 16, 10,
+		Color(0.20, 0.14, 0.06), HORIZONTAL_ALIGNMENT_CENTER)
 
 	_nl(root, "Loopy, visto pela última vez saindo do Café Loop",
 		PX + 656, PY + 374, 320, 18, 10,
@@ -296,3 +306,154 @@ func _build_newspaper() -> void:
 	tween.tween_property(root, "modulate:a", 1.0, 0.55)
 
 	_newspaper_visible = true
+
+# ============================================================
+# DESENHO DO LOOPY (procedural, usado no jornal e na cena final)
+# ============================================================
+
+func _rect(parent: Node, x: float, y: float, w: float, h: float, col: Color) -> void:
+	var r := ColorRect.new()
+	r.position = Vector2(x, y)
+	r.size     = Vector2(w, h)
+	r.color    = col
+	parent.add_child(r)
+
+## Desenha o Loopy centrado em (cx, cy) nos pés. Escala e paleta sépia opcional.
+## Baseado no personagem: gorro verde com folha, barba, capa roxa,
+## moletom amarelo, jeans, tênis verde, cajado com xícara e patinho de borracha.
+func _draw_loopy(parent: Node, cx: float, cy: float, s: float, sepia: bool) -> void:
+	var pal_skin   := Color(0.96, 0.82, 0.66)
+	var pal_hair   := Color(0.42, 0.26, 0.14)
+	var pal_beard  := Color(0.48, 0.32, 0.18)
+	var pal_beanie := Color(0.32, 0.55, 0.28)
+	var pal_leaf   := Color(0.55, 0.78, 0.30)
+	var pal_hood   := Color(0.92, 0.74, 0.22)
+	var pal_cape   := Color(0.42, 0.24, 0.52)
+	var pal_jeans  := Color(0.28, 0.38, 0.62)
+	var pal_shoe   := Color(0.36, 0.60, 0.32)
+	var pal_staff  := Color(0.36, 0.22, 0.12)
+	var pal_cup    := Color(0.96, 0.94, 0.88)
+	var pal_tea    := Color(0.52, 0.32, 0.18)
+	var pal_duck   := Color(1.00, 0.82, 0.18)
+	var pal_steam  := Color(0.85, 0.85, 0.80, 0.7)
+	var pal_dark   := Color(0.10, 0.08, 0.06)
+
+	if sepia:
+		# Converte cada cor em tom sépia para parecer foto antiga
+		var cols := [pal_skin, pal_hair, pal_beard, pal_beanie, pal_leaf,
+					 pal_hood, pal_cape, pal_jeans, pal_shoe, pal_staff,
+					 pal_cup, pal_tea, pal_duck, pal_steam, pal_dark]
+		for i in cols.size():
+			var c: Color = cols[i]
+			var g := c.r * 0.3 + c.g * 0.59 + c.b * 0.11
+			cols[i] = Color(g * 0.95 + 0.10, g * 0.78 + 0.05, g * 0.55, c.a)
+		pal_skin = cols[0]; pal_hair = cols[1]; pal_beard = cols[2]
+		pal_beanie = cols[3]; pal_leaf = cols[4]; pal_hood = cols[5]
+		pal_cape = cols[6]; pal_jeans = cols[7]; pal_shoe = cols[8]
+		pal_staff = cols[9]; pal_cup = cols[10]; pal_tea = cols[11]
+		pal_duck = cols[12]; pal_steam = cols[13]; pal_dark = cols[14]
+
+	# Helpers de posição (cx = centro horizontal, cy = pés)
+	var x = func(dx: float) -> float: return cx + dx * s
+	var y = func(dy: float) -> float: return cy - dy * s
+
+	# Capa roxa (atrás) — flutuando para trás
+	_rect(parent, x.call(-22), y.call(80), 16 * s, 60 * s, pal_cape)
+	_rect(parent, x.call(-20), y.call(45), 10 * s, 20 * s, pal_cape)
+	# Tênis verdes
+	_rect(parent, x.call(-10), y.call(6),  10 * s, 6 * s, pal_shoe)
+	_rect(parent, x.call(2),   y.call(6),  10 * s, 6 * s, pal_shoe)
+	# Solas escuras
+	_rect(parent, x.call(-10), y.call(0),  10 * s, 2 * s, pal_dark)
+	_rect(parent, x.call(2),   y.call(0),  10 * s, 2 * s, pal_dark)
+	# Jeans
+	_rect(parent, x.call(-9),  y.call(26), 8 * s, 20 * s, pal_jeans)
+	_rect(parent, x.call(1),   y.call(26), 8 * s, 20 * s, pal_jeans)
+	# Detalhe rasgado (mais claro)
+	_rect(parent, x.call(-8),  y.call(16), 6 * s, 2 * s, Color(pal_jeans.r + 0.12, pal_jeans.g + 0.10, pal_jeans.b + 0.08))
+	# Moletom amarelo
+	_rect(parent, x.call(-13), y.call(58), 26 * s, 34 * s, pal_hood)
+	# Sombra moletom (contorno inferior)
+	_rect(parent, x.call(-13), y.call(26), 26 * s, 3 * s, Color(pal_hood.r * 0.7, pal_hood.g * 0.7, pal_hood.b * 0.5))
+	# Capa (frente - lado direito visível)
+	_rect(parent, x.call(10),  y.call(70), 12 * s, 40 * s, pal_cape)
+	# Braço esquerdo (segura patinho)
+	_rect(parent, x.call(-18), y.call(55), 6 * s, 18 * s, pal_hood)
+	# Patinho de borracha
+	_rect(parent, x.call(-26), y.call(52), 10 * s, 8 * s, pal_duck)
+	_rect(parent, x.call(-21), y.call(58), 6 * s, 5 * s, pal_duck)  # cabeça do pato
+	_rect(parent, x.call(-27), y.call(56), 2 * s, 1.5 * s, pal_dark)  # olhinho
+	# Bico
+	_rect(parent, x.call(-30), y.call(54), 3 * s, 2 * s, Color(0.95, 0.55, 0.15) if not sepia else pal_duck)
+	# Cabeça (pele)
+	_rect(parent, x.call(-10), y.call(82), 20 * s, 20 * s, pal_skin)
+	# Barba
+	_rect(parent, x.call(-10), y.call(68), 20 * s, 10 * s, pal_beard)
+	_rect(parent, x.call(-8),  y.call(64), 16 * s, 4 * s, pal_beard)
+	# Boca (pequena linha escura)
+	_rect(parent, x.call(-3),  y.call(72), 6 * s, 1.5 * s, pal_dark)
+	# Olho
+	_rect(parent, x.call(-6),  y.call(80), 3 * s, 3 * s, pal_dark)
+	# Nariz (tom um pouco mais escuro que pele)
+	_rect(parent, x.call(-10), y.call(78), 3 * s, 3 * s, Color(pal_skin.r * 0.85, pal_skin.g * 0.72, pal_skin.b * 0.60))
+	# Cabelo (saindo do gorro)
+	_rect(parent, x.call(-12), y.call(88), 6 * s, 6 * s, pal_hair)
+	_rect(parent, x.call(-13), y.call(82), 3 * s, 6 * s, pal_hair)
+	# Gorro verde
+	_rect(parent, x.call(-12), y.call(102), 24 * s, 12 * s, pal_beanie)
+	_rect(parent, x.call(-11), y.call(108), 22 * s, 4 * s, Color(pal_beanie.r * 0.75, pal_beanie.g * 0.75, pal_beanie.b * 0.70))
+	_rect(parent, x.call(-12), y.call(94),  24 * s, 3 * s, Color(pal_beanie.r * 0.80, pal_beanie.g * 0.80, pal_beanie.b * 0.75))  # barra
+	# Folha no gorro
+	_rect(parent, x.call(-2),  y.call(114), 6 * s, 5 * s, pal_leaf)
+	_rect(parent, x.call(0),   y.call(118), 3 * s, 3 * s, pal_leaf)
+	# Cajado (atrás, inclinado à direita)
+	_rect(parent, x.call(16),  y.call(6),   3 * s, 110 * s, pal_staff)
+	# Xícara no topo do cajado
+	_rect(parent, x.call(12),  y.call(120), 12 * s, 9 * s, pal_cup)
+	_rect(parent, x.call(13),  y.call(122), 10 * s, 5 * s, pal_tea)  # chá
+	_rect(parent, x.call(24),  y.call(124), 3 * s, 5 * s, pal_cup)   # alça
+	# Vapor
+	_rect(parent, x.call(14),  y.call(132), 2 * s, 4 * s, pal_steam)
+	_rect(parent, x.call(18),  y.call(136), 2 * s, 5 * s, pal_steam)
+	_rect(parent, x.call(16),  y.call(142), 2 * s, 3 * s, pal_steam)
+
+## Desenha o Rob (silhueta simples colorida) nos pés (cx, cy).
+func _draw_rob(parent: Node, cx: float, cy: float, s: float) -> void:
+	var skin := Color(0.98, 0.84, 0.70)
+	var shirt := Color(0.30, 0.65, 1.00)
+	var pants := Color(0.22, 0.28, 0.42)
+	var shoe  := Color(0.14, 0.14, 0.18)
+	var hair  := Color(0.22, 0.16, 0.10)
+	_rect(parent, cx - 10 * s, cy - 6 * s,  8 * s, 6 * s, shoe)
+	_rect(parent, cx + 2  * s, cy - 6 * s,  8 * s, 6 * s, shoe)
+	_rect(parent, cx - 9  * s, cy - 24 * s, 7 * s, 18 * s, pants)
+	_rect(parent, cx + 2  * s, cy - 24 * s, 7 * s, 18 * s, pants)
+	_rect(parent, cx - 12 * s, cy - 48 * s, 24 * s, 24 * s, shirt)
+	_rect(parent, cx - 16 * s, cy - 42 * s, 4  * s, 18 * s, skin)  # braço
+	_rect(parent, cx + 12 * s, cy - 42 * s, 4  * s, 18 * s, skin)
+	_rect(parent, cx - 8  * s, cy - 62 * s, 16 * s, 14 * s, skin)  # cabeça
+	_rect(parent, cx - 9  * s, cy - 66 * s, 18 * s, 6  * s, hair)
+	_rect(parent, cx - 4  * s, cy - 56 * s, 2  * s, 2  * s, Color.BLACK)
+	_rect(parent, cx + 2  * s, cy - 56 * s, 2  * s, 2  * s, Color.BLACK)
+	_rect(parent, cx - 2  * s, cy - 50 * s, 4  * s, 1.2 * s, Color(0.6, 0.2, 0.2))  # sorriso
+
+## Desenha o Bog (silhueta simples colorida) nos pés (cx, cy).
+func _draw_bog(parent: Node, cx: float, cy: float, s: float) -> void:
+	var skin := Color(0.98, 0.78, 0.62)
+	var shirt := Color(1.00, 0.55, 0.20)
+	var pants := Color(0.36, 0.24, 0.14)
+	var shoe  := Color(0.18, 0.14, 0.10)
+	var hair  := Color(0.10, 0.08, 0.06)
+	# Bog é maior/pesado
+	_rect(parent, cx - 12 * s, cy - 6 * s,  10 * s, 6 * s, shoe)
+	_rect(parent, cx + 2  * s, cy - 6 * s,  10 * s, 6 * s, shoe)
+	_rect(parent, cx - 11 * s, cy - 26 * s, 9 * s, 20 * s, pants)
+	_rect(parent, cx + 2  * s, cy - 26 * s, 9 * s, 20 * s, pants)
+	_rect(parent, cx - 16 * s, cy - 54 * s, 32 * s, 28 * s, shirt)
+	_rect(parent, cx - 20 * s, cy - 48 * s, 4  * s, 20 * s, skin)
+	_rect(parent, cx + 16 * s, cy - 48 * s, 4  * s, 20 * s, skin)
+	_rect(parent, cx - 10 * s, cy - 70 * s, 20 * s, 16 * s, skin)
+	_rect(parent, cx - 11 * s, cy - 74 * s, 22 * s, 6  * s, hair)
+	_rect(parent, cx - 5  * s, cy - 62 * s, 2  * s, 2  * s, Color.BLACK)
+	_rect(parent, cx + 3  * s, cy - 62 * s, 2  * s, 2  * s, Color.BLACK)
+	_rect(parent, cx - 2  * s, cy - 56 * s, 4  * s, 1.2 * s, Color(0.5, 0.2, 0.2))
