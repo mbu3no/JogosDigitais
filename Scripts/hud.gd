@@ -4,6 +4,8 @@ class_name GameHUD
 ## HUD do jogo Lost & Loopy
 ## Responsavel por: painel principal, intro de fase, fade de transicao e checkpoint.
 
+signal pause_requested
+
 # --- Painel superior ---
 var _lbl_phase:    Label
 var _lbl_name:     Label
@@ -14,6 +16,8 @@ var _bog_bg:       ColorRect
 var _lbl_rob:      Label
 var _lbl_bog:      Label
 var _hearts:       Array = []   # 4 Labels de coracao
+var _lbl_stars:    Label        # contador de estrelas
+var _btn_pause:    Button       # botão de pause
 var _pulse_tween: Tween = null
 var _rob_was_ready: bool  = false
 var _bog_was_ready: bool  = false
@@ -235,6 +239,41 @@ func _build_top_panel() -> void:
 		heart.add_theme_color_override("font_color", COLOR_HEART_ON)
 		add_child(heart)
 		_hearts.append(heart)
+
+	# ---- Estrelas coletadas (abaixo do painel, canto esquerdo) ----
+	_lbl_stars = Label.new()
+	_lbl_stars.text     = "★ 0 / 0"
+	_lbl_stars.position = Vector2(14, 76)
+	_lbl_stars.size     = Vector2(200, 26)
+	_lbl_stars.add_theme_font_size_override("font_size", 18)
+	_lbl_stars.add_theme_color_override("font_color", COLOR_GOLD)
+	add_child(_lbl_stars)
+
+	# ---- Botão de pause (canto superior direito, acima do painel) ----
+	_btn_pause = Button.new()
+	_btn_pause.text     = "II  Pausa"
+	_btn_pause.position = Vector2(1060, 76)
+	_btn_pause.size     = Vector2(82, 28)
+	_btn_pause.add_theme_font_size_override("font_size", 14)
+	_btn_pause.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	_btn_pause.pressed.connect(_on_pause_pressed)
+	add_child(_btn_pause)
+
+func _on_pause_pressed() -> void:
+	pause_requested.emit()
+
+func update_stars(collected: int, total: int) -> void:
+	if _lbl_stars:
+		_lbl_stars.text = "★  %d  /  %d" % [collected, total]
+
+func flash_star() -> void:
+	if not _lbl_stars:
+		return
+	var tw := create_tween()
+	_lbl_stars.scale = Vector2(1.35, 1.35)
+	_lbl_stars.pivot_offset = Vector2(60, 13)
+	tw.tween_property(_lbl_stars, "scale", Vector2.ONE, 0.35)\
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 # ============================================================
 # METODOS DE ATUALIZACAO

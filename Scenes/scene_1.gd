@@ -34,6 +34,9 @@ var _moving_platforms: Array = []
 
 const DEATH_Y: float = 950.0
 
+# Estrelas
+var _stars_left_in_level: int = 0
+
 # ============================================================
 # INICIALIZACAO
 # ============================================================
@@ -43,6 +46,7 @@ func _ready() -> void:
 	_create_background()
 	hud = GameHUD.new()
 	add_child(hud)
+	hud.pause_requested.connect(_toggle_pause)
 	_setup_characters()
 	_load_level()
 
@@ -61,8 +65,101 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("switch_character") and not hud.showing_intro and not hud.fading:
 		_switch_character()
-	if event.is_action_pressed("pause"):
-		get_tree().paused = !get_tree().paused
+	if event.is_action_pressed("pause") and not hud.showing_intro and victory_overlay == null:
+		_toggle_pause()
+
+# ============================================================
+# PAUSE
+# ============================================================
+
+var _pause_overlay: Control = null
+
+func _toggle_pause() -> void:
+	if _pause_overlay and is_instance_valid(_pause_overlay):
+		_close_pause()
+	else:
+		_open_pause()
+
+func _open_pause() -> void:
+	get_tree().paused = true
+
+	_pause_overlay = Control.new()
+	_pause_overlay.size = Vector2(1152, 648)
+	_pause_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	hud.add_child(_pause_overlay)
+
+	var dim := ColorRect.new()
+	dim.size  = Vector2(1152, 648)
+	dim.color = Color(0, 0, 0, 0.72)
+	_pause_overlay.add_child(dim)
+
+	var box := ColorRect.new()
+	box.size     = Vector2(440, 300)
+	box.position = Vector2(356, 174)
+	box.color    = Color(0.10, 0.12, 0.20, 0.98)
+	_pause_overlay.add_child(box)
+
+	var border := ColorRect.new()
+	border.size     = Vector2(440, 4)
+	border.position = Vector2(356, 174)
+	border.color    = Color(0.30, 0.75, 1.0, 0.9)
+	_pause_overlay.add_child(border)
+
+	var title := Label.new()
+	title.text     = "— PAUSA —"
+	title.position = Vector2(356, 196)
+	title.size     = Vector2(440, 44)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+	_pause_overlay.add_child(title)
+
+	var info := Label.new()
+	info.text     = "★  Estrelas: %d / %d" % [GameManager.stars_collected, GameManager.stars_total_game]
+	info.position = Vector2(356, 244)
+	info.size     = Vector2(440, 24)
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size", 16)
+	info.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35))
+	_pause_overlay.add_child(info)
+
+	var btn_resume := Button.new()
+	btn_resume.text = "Continuar"
+	btn_resume.position = Vector2(416, 288)
+	btn_resume.size     = Vector2(320, 46)
+	btn_resume.add_theme_font_size_override("font_size", 20)
+	btn_resume.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	btn_resume.pressed.connect(_close_pause)
+	_pause_overlay.add_child(btn_resume)
+
+	var btn_menu := Button.new()
+	btn_menu.text = "Voltar ao Menu"
+	btn_menu.position = Vector2(416, 346)
+	btn_menu.size     = Vector2(320, 46)
+	btn_menu.add_theme_font_size_override("font_size", 20)
+	btn_menu.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	btn_menu.pressed.connect(_quit_to_menu)
+	_pause_overlay.add_child(btn_menu)
+
+	var hint := Label.new()
+	hint.text     = "ESC  para continuar"
+	hint.position = Vector2(356, 414)
+	hint.size     = Vector2(440, 24)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(0.5, 0.5, 0.62))
+	_pause_overlay.add_child(hint)
+
+func _close_pause() -> void:
+	if _pause_overlay and is_instance_valid(_pause_overlay):
+		_pause_overlay.queue_free()
+	_pause_overlay = null
+	get_tree().paused = false
+
+func _quit_to_menu() -> void:
+	get_tree().paused = false
+	GameManager.reset_game()
+	get_tree().change_scene_to_file("res://Scenes/main_menu.tscn")
 
 # ============================================================
 # CARREGAMENTO DE FASE
@@ -115,6 +212,17 @@ func _load_level() -> void:
 		_create_hazard(h[0], h[1], h[2], h[3])
 
 	_create_level_exit(Vector2(level["exit_pos"][0], level["exit_pos"][1]))
+
+	# Estrelas coletáveis da fase (pula as já coletadas nesta partida)
+	var stars: Array = level.get("stars", [])
+	GameManager.stars_in_level = stars.size()
+	_stars_left_in_level = stars.size()
+	for i in stars.size():
+		if GameManager.is_star_collected(idx, i):
+			_stars_left_in_level -= 1
+			continue
+		_create_star(stars[i][0], stars[i][1], idx, i)
+	hud.update_stars(GameManager.stars_collected, GameManager.stars_total_game)
 
 	loopy_start = Vector2(level["loopy_start"][0], level["loopy_start"][1])
 	loopy_end   = Vector2(level["loopy_end"][0],   level["loopy_end"][1])
@@ -368,6 +476,86 @@ func _on_exit_body_entered(body: Node) -> void:
 		_complete_level()
 
 # ============================================================
+# ESTRELAS COLETÁVEIS
+# ============================================================
+
+func _create_star(x: float, y: float, level_idx: int, star_idx: int) -> void:
+	var area := Area2D.new()
+	area.position = Vector2(x, y)
+	area.name     = "Star"
+	area.set_meta("level_idx", level_idx)
+	area.set_meta("star_idx",  star_idx)
+
+	var shape := CollisionShape2D.new()
+	var rect  := RectangleShape2D.new()
+	rect.size   = Vector2(30, 30)
+	shape.shape = rect
+	area.add_child(shape)
+
+	# Visual: estrela dourada feita de ColorRects (losango + centro)
+	var star_visual := Node2D.new()
+	area.add_child(star_visual)
+	var gold    := Color(1.0, 0.88, 0.30)
+	var gold_hi := Color(1.0, 0.96, 0.55)
+	for v in [Vector2(-3, -12), Vector2(-3, 6), Vector2(-12, -3), Vector2(6, -3)]:
+		var arm := ColorRect.new()
+		arm.size     = Vector2(6, 6)
+		arm.position = v
+		arm.color    = gold
+		star_visual.add_child(arm)
+	var body := ColorRect.new()
+	body.size     = Vector2(12, 12)
+	body.position = Vector2(-6, -6)
+	body.color    = gold_hi
+	star_visual.add_child(body)
+	var inner := ColorRect.new()
+	inner.size     = Vector2(6, 6)
+	inner.position = Vector2(-3, -3)
+	inner.color    = Color(1.0, 1.0, 0.85)
+	star_visual.add_child(inner)
+
+	# Brilho ao redor
+	var glow := ColorRect.new()
+	glow.size     = Vector2(36, 36)
+	glow.position = Vector2(-18, -18)
+	glow.color    = Color(1.0, 0.88, 0.30, 0.18)
+	star_visual.add_child(glow)
+	star_visual.move_child(glow, 0)
+
+	# Flutuação suave
+	var tw := create_tween().set_loops()
+	tw.tween_property(star_visual, "position:y", -6.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(star_visual, "position:y",  0.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+	area.collision_layer = 0
+	area.collision_mask  = 1
+	area.body_entered.connect(_on_star_body_entered.bind(area))
+
+	add_child(area)
+	level_nodes.append(area)
+
+func _on_star_body_entered(body: Node, area: Area2D) -> void:
+	if body != current_character and body != rob and body != bog:
+		return
+	if not is_instance_valid(area):
+		return
+	var li: int = area.get_meta("level_idx")
+	var si: int = area.get_meta("star_idx")
+	if GameManager.is_star_collected(li, si):
+		return
+	GameManager.collect_star(li, si)
+	_stars_left_in_level -= 1
+	hud.update_stars(GameManager.stars_collected, GameManager.stars_total_game)
+	hud.flash_star()
+
+	# Animação de coleta: escala/fade antes de remover
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(area, "scale", Vector2(2.0, 2.0), 0.25)
+	tw.tween_property(area, "modulate:a", 0.0, 0.25)
+	tw.chain().tween_callback(area.queue_free)
+	level_nodes.erase(area)
+
+# ============================================================
 # LOOPY NPC
 # ============================================================
 
@@ -529,38 +717,43 @@ func _add_victory_label(txt: String, y: float, fs: int, col: Color) -> void:
 	tw.tween_property(lbl, "modulate:a", 1.0, 0.55)
 
 func _run_victory_sequence() -> void:
-	# Céu de pôr do sol no topo do overlay
 	_add_victory_sky()
 
-	# Linha 1 - imediata
-	_add_victory_label("Você alcançou o Loopy!", 30, 42, Color(0.28, 1.0, 0.42))
+	_add_victory_label("Você alcançou o Loopy!", 18, 38, Color(0.28, 1.0, 0.42))
 	await get_tree().create_timer(1.4).timeout
 
-	_add_victory_label("Loopy para no meio da rua...", 95, 20, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.2).timeout
+	_add_victory_label("Loopy para no meio da rua...", 80, 20, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.1).timeout
 
-	_add_victory_label("Ele olha ao redor, confuso.", 125, 20, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.2).timeout
+	_add_victory_label("Ele olha ao redor, confuso.", 108, 20, Color(0.78, 0.78, 0.90))
+	await get_tree().create_timer(1.1).timeout
 
-	_add_victory_label("Seus olhos focam lentamente...", 155, 20, Color(0.78, 0.78, 0.90))
-	await get_tree().create_timer(1.5).timeout
-
-	_add_victory_label("— Rob?  Bog?  O que aconteceu?  Onde eu estava? —", 190, 20, Color(1.0, 0.92, 0.38))
-	await get_tree().create_timer(1.6).timeout
-
-	_add_victory_label("O efeito do chá foi embora.", 230, 17, Color(0.70, 0.70, 0.82))
+	_add_victory_label("Seus olhos focam lentamente...", 136, 20, Color(0.78, 0.78, 0.90))
 	await get_tree().create_timer(1.3).timeout
 
-	# ---- Reencontro visual: os três amigos juntos ----
+	_add_victory_label("— Rob?  Bog?  O que aconteceu?  Onde eu estava? —",
+					   166, 20, Color(1.0, 0.92, 0.38))
+	await get_tree().create_timer(1.5).timeout
+
+	_add_victory_label("O efeito do chá foi embora.", 200, 17, Color(0.70, 0.70, 0.82))
+	await get_tree().create_timer(1.2).timeout
+
 	_add_reunion_scene()
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(0.8).timeout
 
-	_add_victory_label("Os três amigos estão juntos novamente!", 570, 26, Color(0.95, 0.95, 1.0))
-	await get_tree().create_timer(1.0).timeout
+	# Tudo abaixo do reencontro (sem sobrepor as silhuetas)
+	var stars_msg := "★  Estrelas coletadas: %d / %d" % [GameManager.stars_collected, GameManager.stars_total_game]
+	_add_victory_label(stars_msg, 588, 18, Color(1.0, 0.88, 0.40))
+	await get_tree().create_timer(0.8).timeout
 
-	_add_victory_label("Pressione  ESPAÇO  para voltar ao menu", 612, 15, Color(0.48, 0.48, 0.60))
+	_add_victory_label("Os três amigos estão juntos novamente!",
+					   614, 20, Color(0.95, 0.95, 1.0))
+	await get_tree().create_timer(0.9).timeout
 
-	await get_tree().create_timer(0.5).timeout
+	_add_victory_label("Pressione  ESPAÇO  para voltar ao menu",
+					   634, 13, Color(0.55, 0.55, 0.65))
+
+	await get_tree().create_timer(0.4).timeout
 	_wait_for_menu_input()
 
 # ============================================================
@@ -568,21 +761,19 @@ func _run_victory_sequence() -> void:
 # ============================================================
 
 func _add_victory_sky() -> void:
-	# Faixa superior escura (noite)
 	var sky := ColorRect.new()
-	sky.position = Vector2(0, 260)
+	sky.position = Vector2(0, 230)
 	sky.size     = Vector2(1152, 80)
 	sky.color    = Color(0.18, 0.12, 0.28)
 	victory_overlay.add_child(sky)
-	# Faixa pôr-do-sol
 	var dusk := ColorRect.new()
-	dusk.position = Vector2(0, 340)
+	dusk.position = Vector2(0, 310)
 	dusk.size     = Vector2(1152, 80)
 	dusk.color    = Color(0.85, 0.45, 0.30)
 	victory_overlay.add_child(dusk)
 	var glow := ColorRect.new()
-	glow.position = Vector2(0, 420)
-	glow.size     = Vector2(1152, 40)
+	glow.position = Vector2(0, 390)
+	glow.size     = Vector2(1152, 80)
 	glow.color    = Color(0.98, 0.72, 0.35)
 	victory_overlay.add_child(glow)
 
@@ -593,43 +784,56 @@ func _add_reunion_scene() -> void:
 	scene.modulate.a = 0.0
 	victory_overlay.add_child(scene)
 
-	# Edifícios ao fundo (silhuetas com janelas)
+	# Edifícios ao fundo (silhuetas com janelas acesas)
 	for i in range(9):
 		var bx: float = 40.0 + i * 130.0
 		var bh: float = 60.0 + ((i * 37) % 50)
-		_v_rect(scene, bx, 420.0 - bh, 110.0, bh, Color(0.20, 0.16, 0.30))
+		_v_rect(scene, bx, 430.0 - bh, 110.0, bh, Color(0.18, 0.14, 0.26))
 		for jy in range(3):
 			for jx in range(3):
 				if (i + jx + jy) % 3 == 0:
-					_v_rect(scene, bx + 12.0 + jx * 30, 420.0 - bh + 10.0 + jy * 16,
+					_v_rect(scene, bx + 12.0 + jx * 30, 430.0 - bh + 10.0 + jy * 16,
 							10.0, 8.0, Color(1.0, 0.85, 0.45, 0.9))
 
 	# Sol pôr-do-sol
-	_v_rect(scene, 540.0, 375.0, 72.0, 72.0, Color(1.0, 0.78, 0.35))
-	_v_rect(scene, 510.0, 410.0, 132.0, 30.0, Color(1.0, 0.58, 0.28, 0.6))
+	_v_rect(scene, 540.0, 345.0, 72.0, 72.0, Color(1.0, 0.78, 0.35))
+	_v_rect(scene, 510.0, 395.0, 132.0, 26.0, Color(1.0, 0.58, 0.28, 0.55))
 
 	# Chão
-	_v_rect(scene, 0.0, 460.0, 1152.0, 120.0, Color(0.20, 0.15, 0.12))
-	_v_rect(scene, 0.0, 460.0, 1152.0, 4.0,   Color(0.12, 0.09, 0.06))
-	# Calçada
-	_v_rect(scene, 0.0, 530.0, 1152.0, 2.0, Color(0.35, 0.28, 0.20))
+	_v_rect(scene, 0.0, 470.0, 1152.0, 115.0, Color(0.22, 0.16, 0.14))
+	_v_rect(scene, 0.0, 470.0, 1152.0, 4.0,   Color(0.12, 0.09, 0.06))
+	_v_rect(scene, 0.0, 540.0, 1152.0, 2.0, Color(0.35, 0.28, 0.20))
 
-	# Título
-	_v_label(scene, "— REENCONTRO —", 0.0, 290.0, 28, Color(1.0, 0.90, 0.50), true)
+	# Título centralizado acima do céu
+	_v_label(scene, "— REENCONTRO —", 0.0, 255.0, 24, Color(1.0, 0.90, 0.50), true)
 
-	# Os 3 amigos lado a lado (pés em y=560)
-	_draw_rob_sil(scene,   430.0, 560.0, 2.0)
-	_draw_loopy_full(scene, 576.0, 560.0, 1.8)
-	_draw_bog_sil(scene,   730.0, 560.0, 2.0)
+	# Personagens em y=570 (acima dos labels em y=588)
+	_add_character_sprite(scene, "res://Assets/Characters/Main_2/Idle.png", 420.0, 570.0, 1.6)
+	_draw_loopy_full(scene, 576.0, 570.0, 1.3)
+	_add_character_sprite(scene, "res://Assets/Characters/Main_1/Idle.png", 730.0, 570.0, 1.6)
 
-	# Corações de alegria acima das cabeças
-	_add_heart(scene, 430.0, 310.0)
-	_add_heart(scene, 720.0, 315.0)
-	_v_label(scene, "♪", 500.0, 285.0, 34, Color(1.0, 0.85, 0.45))
-	_v_label(scene, "♫", 635.0, 285.0, 34, Color(1.0, 0.75, 0.35))
+	# Corações acima das cabeças (entre y=300 e y=420)
+	_add_heart(scene, 400.0, 340.0)
+	_add_heart(scene, 750.0, 345.0)
+	_v_label(scene, "♪", 485.0, 335.0, 30, Color(1.0, 0.85, 0.45))
+	_v_label(scene, "♫", 650.0, 340.0, 30, Color(1.0, 0.75, 0.35))
 
 	var tw := create_tween()
 	tw.tween_property(scene, "modulate:a", 1.0, 0.85)
+
+## Carrega spritesheet 16-frames e mostra o frame 0 como sprite estático.
+func _add_character_sprite(parent: Node, path: String, feet_x: float, feet_y: float, scl: float) -> void:
+	var sprite := Sprite2D.new()
+	var tex: Texture2D = load(path)
+	if tex == null:
+		return
+	sprite.texture  = tex
+	sprite.hframes  = 16
+	sprite.frame    = 0
+	sprite.scale    = Vector2(scl, scl)
+	var frame_h := tex.get_height()
+	sprite.position = Vector2(feet_x, feet_y - (frame_h * scl) * 0.5)
+	parent.add_child(sprite)
 
 func _v_rect(parent: Node, x: float, y: float, w: float, h: float, col: Color) -> void:
 	var r := ColorRect.new()
@@ -720,7 +924,6 @@ func _draw_loopy_full(parent: Node, cx: float, cy: float, s: float) -> void:
 	_pr(parent, cx, cy, s, 18, 134, 14, 11, cup)
 	_pr(parent, cx, cy, s, 20, 132,  9,  4, tea)
 	_pr(parent, cx, cy, s, 32, 130,  3,  6, cup)
-	_v_label(parent, "Loopy", cx - 32.0, cy + 14.0, 14, Color(0.95, 0.80, 0.35))
 
 func _draw_rob_sil(parent: Node, cx: float, cy: float, s: float) -> void:
 	var skin  := Color(0.98, 0.84, 0.70)
