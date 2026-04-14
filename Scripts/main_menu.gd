@@ -9,6 +9,7 @@ var quit_button: Button
 var bg: ColorRect
 var time: float = 0.0
 var _newspaper_visible: bool = false
+var _intro_visible: bool = false
 
 func _ready() -> void:
 	_build_ui()
@@ -19,6 +20,10 @@ func _process(delta: float) -> void:
 		title_label.rotation = sin(time * 1.5) * 0.03
 		title_label.position.y = 100 + sin(time * 2.0) * 5.0
 	if _newspaper_visible:
+		if Input.is_action_just_pressed("jump") or Input.is_action_just_pressed("ui_accept"):
+			_newspaper_visible = false
+			_build_character_intro()
+	elif _intro_visible:
 		if Input.is_action_just_pressed("jump") or Input.is_action_just_pressed("ui_accept"):
 			_start_game()
 
@@ -119,8 +124,119 @@ func _on_quit() -> void:
 
 func _start_game() -> void:
 	_newspaper_visible = false
+	_intro_visible     = false
 	GameManager.start_game()
 	get_tree().change_scene_to_file("res://Scenes/scene1.tscn")
+
+# ============================================================
+# INTRO DOS PERSONAGENS (após o jornal, antes do jogo)
+# ============================================================
+
+func _build_character_intro() -> void:
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(root)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.05, 0.10, 0.97)
+	root.add_child(dim)
+
+	# Título
+	_nl(root, "CONHEÇA SEUS HERÓIS",
+		0, 32, 1152, 50, 34, Color(0.95, 0.95, 1.0), HORIZONTAL_ALIGNMENT_CENTER)
+	_nl(root, "Dois amigos em busca de Loopy  ·  cada um com um jeito",
+		0, 78, 1152, 24, 14, Color(0.60, 0.65, 0.80), HORIZONTAL_ALIGNMENT_CENTER)
+
+	# Linha divisória
+	var divider := ColorRect.new()
+	divider.position = Vector2(576, 130)
+	divider.size     = Vector2(2, 400)
+	divider.color    = Color(0.25, 0.30, 0.45, 0.45)
+	root.add_child(divider)
+
+	# ---- ROB (lado esquerdo) ----
+	_build_hero_card(root, "res://Assets/Characters/Main_2/Idle.png",
+		70, "ROB", Color(0.30, 0.65, 1.00),
+		"Ágil e rápido",
+		[
+			"•  Corre mais rápido que o Bog",
+			"•  Pulo mais alto",
+			"•  [Z] DASH — surto horizontal curto",
+			"",
+			"✗  NÃO empurra caixas",
+		])
+
+	# ---- BOG (lado direito) ----
+	_build_hero_card(root, "res://Assets/Characters/Main_1/Idle.png",
+		640, "BOG", Color(1.00, 0.60, 0.25),
+		"Forte e pesado",
+		[
+			"•  Mais lento, pulo menor",
+			"•  [Z] IMPACTO — chão: empurrão forte",
+			"             ar: queda com força",
+			"•  Empurra caixas de madeira",
+			"   (basta caminhar contra elas)",
+		])
+
+	# ---- Rodapé: controles gerais ----
+	var footer_bg := ColorRect.new()
+	footer_bg.position = Vector2(76, 540)
+	footer_bg.size     = Vector2(1000, 60)
+	footer_bg.color    = Color(0.10, 0.08, 0.04, 0.85)
+	root.add_child(footer_bg)
+
+	_nl(root, "CONTROLES  ·  A/D ou Setas = Mover   ·   ESPAÇO = Pular   ·   TAB = Trocar personagem   ·   Z = Habilidade   ·   ESC = Pausa",
+		76, 552, 1000, 18, 13, Color(0.85, 0.78, 0.40), HORIZONTAL_ALIGNMENT_CENTER)
+	_nl(root, "Colete ★ estrelas pelo caminho — algumas só se alcançam com o bloco do Bog como degrau",
+		76, 574, 1000, 18, 11, Color(1.0, 0.85, 0.35), HORIZONTAL_ALIGNMENT_CENTER)
+
+	_nl(root, "—  PRESSIONE  ESPAÇO  PARA COMEÇAR  —",
+		0, 612, 1152, 30, 18,
+		Color(0.30, 1.0, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
+
+	root.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(root, "modulate:a", 1.0, 0.55)
+
+	_intro_visible = true
+
+func _build_hero_card(parent: Node, sprite_path: String,
+					  x: float, name: String, color: Color,
+					  subtitle: String, bullets: Array) -> void:
+	# Retrato (sprite do jogo)
+	var tex: Texture2D = load(sprite_path)
+	if tex != null:
+		var sprite := Sprite2D.new()
+		sprite.texture  = tex
+		sprite.hframes  = 16
+		sprite.frame    = 0
+		sprite.scale    = Vector2(1.9, 1.9)
+		var frame_h := tex.get_height()
+		sprite.position = Vector2(x + 120, 170 + frame_h * 0.95)
+		parent.add_child(sprite)
+
+	# Moldura do retrato
+	var frame_bg := ColorRect.new()
+	frame_bg.position = Vector2(x + 20, 140)
+	frame_bg.size     = Vector2(200, 200)
+	frame_bg.color    = Color(color.r * 0.20, color.g * 0.20, color.b * 0.22, 0.50)
+	parent.add_child(frame_bg)
+	parent.move_child(frame_bg, parent.get_child_count() - 2)  # atrás do sprite
+
+	# Nome grande
+	_nl(parent, name, x, 130, 470, 52, 44, color, HORIZONTAL_ALIGNMENT_CENTER)
+
+	# Subtítulo
+	_nl(parent, subtitle, x, 350, 470, 24, 16,
+		Color(color.r * 0.85, color.g * 0.85, color.b * 0.90),
+		HORIZONTAL_ALIGNMENT_CENTER)
+
+	# Bullets de habilidades
+	var y_start: float = 384
+	for i in bullets.size():
+		_nl(parent, bullets[i], x + 40, y_start + i * 24, 430, 22, 14,
+			Color(0.88, 0.90, 0.95))
 
 # ============================================================
 # JORNAL (CUTSCENE PRE-JOGO)
