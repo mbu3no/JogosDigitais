@@ -66,7 +66,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("switch_character") and not hud.showing_intro and not hud.fading:
 		_switch_character()
 	if event.is_action_pressed("pause") and not hud.showing_intro and victory_overlay == null:
-		_toggle_pause()
+		if hud.is_help_visible():
+			hud._close_help()
+		else:
+			_toggle_pause()
 
 # ============================================================
 # PAUSE

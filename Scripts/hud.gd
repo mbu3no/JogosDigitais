@@ -259,8 +259,116 @@ func _build_top_panel() -> void:
 	_btn_pause.pressed.connect(_on_pause_pressed)
 	add_child(_btn_pause)
 
+	# ---- Botão de Ajuda/Dicas ----
+	var btn_help := Button.new()
+	btn_help.text     = "?  Dicas"
+	btn_help.position = Vector2(970, 76)
+	btn_help.size     = Vector2(82, 28)
+	btn_help.add_theme_font_size_override("font_size", 14)
+	btn_help.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	btn_help.pressed.connect(_show_help)
+	add_child(btn_help)
+
 func _on_pause_pressed() -> void:
 	pause_requested.emit()
+
+# ============================================================
+# OVERLAY DE AJUDA (pausa o jogo e mostra dicas)
+# ============================================================
+
+var _help_overlay: Control = null
+
+func is_help_visible() -> bool:
+	return _help_overlay != null and is_instance_valid(_help_overlay)
+
+func _show_help() -> void:
+	if _help_overlay and is_instance_valid(_help_overlay):
+		return
+	get_tree().paused = true
+
+	_help_overlay = Control.new()
+	_help_overlay.size = Vector2(1152, 648)
+	_help_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	add_child(_help_overlay)
+
+	var dim := ColorRect.new()
+	dim.size  = Vector2(1152, 648)
+	dim.color = Color(0, 0, 0, 0.82)
+	_help_overlay.add_child(dim)
+
+	var box := ColorRect.new()
+	box.position = Vector2(116, 70)
+	box.size     = Vector2(920, 508)
+	box.color    = Color(0.08, 0.10, 0.16, 0.98)
+	_help_overlay.add_child(box)
+
+	var top := ColorRect.new()
+	top.position = Vector2(116, 70)
+	top.size     = Vector2(920, 4)
+	top.color    = Color(0.85, 0.65, 0.25, 0.9)
+	_help_overlay.add_child(top)
+
+	_help_label("DICAS", 0, 82, 1152, 38, 28, Color(1.0, 0.85, 0.30), true)
+	_help_label("Tudo o que você precisa saber para resgatar o Loopy", 0, 120, 1152, 22, 13,
+				Color(0.60, 0.65, 0.78), true)
+
+	# Colunas Rob / Bog
+	_help_label("ROB   — Ágil", 160, 160, 380, 28, 20, Color(0.40, 0.75, 1.00), true)
+	_help_label("• Mais rápido e pulo maior\n• [Z] DASH — surto horizontal\n• NÃO empurra caixas",
+				180, 196, 360, 110, 14, Color(0.88, 0.90, 0.98))
+
+	_help_label("BOG   — Forte", 612, 160, 380, 28, 20, Color(1.00, 0.60, 0.25), true)
+	_help_label("• Mais lento, pulo menor\n• [Z] IMPACTO — chão: empurrão  ·  ar: queda\n• Empurra caixas de madeira\n   (basta caminhar contra elas — sem botão)",
+				632, 196, 360, 110, 14, Color(0.88, 0.90, 0.98))
+
+	# Separador
+	var sep := ColorRect.new()
+	sep.position = Vector2(576, 160)
+	sep.size     = Vector2(2, 150)
+	sep.color    = Color(0.25, 0.30, 0.45, 0.45)
+	_help_overlay.add_child(sep)
+
+	# Controles
+	_help_label("CONTROLES", 0, 330, 1152, 24, 16, Color(0.50, 0.88, 0.55), true)
+	_help_label("A/D ou ←/→  mover   ·   ESPAÇO  pular   ·   TAB  trocar personagem   ·   Z  habilidade   ·   ESC  pausa",
+				0, 358, 1152, 22, 14, Color(0.88, 0.90, 0.98), true)
+
+	# Estrelas
+	_help_label("★ ESTRELAS", 0, 400, 1152, 24, 16, Color(1.0, 0.85, 0.30), true)
+	_help_label("3 estrelas normais + 1 estrela do Bog (alta — empurre a caixa de madeira para usar como degrau)",
+				0, 428, 1152, 22, 13, Color(0.95, 0.85, 0.40), true)
+
+	# Fechar
+	var btn_close := Button.new()
+	btn_close.text     = "Fechar (ESC ou clique)"
+	btn_close.position = Vector2(436, 508)
+	btn_close.size     = Vector2(280, 42)
+	btn_close.add_theme_font_size_override("font_size", 18)
+	btn_close.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	btn_close.pressed.connect(_close_help)
+	_help_overlay.add_child(btn_close)
+
+	_help_overlay.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(_help_overlay, "modulate:a", 1.0, 0.25)
+
+func _help_label(txt: String, x: float, y: float, w: float, h: float, fs: int,
+				 col: Color, center: bool = false) -> void:
+	var l := Label.new()
+	l.text     = txt
+	l.position = Vector2(x, y)
+	l.size     = Vector2(w, h)
+	if center:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", col)
+	_help_overlay.add_child(l)
+
+func _close_help() -> void:
+	if _help_overlay and is_instance_valid(_help_overlay):
+		_help_overlay.queue_free()
+	_help_overlay = null
+	get_tree().paused = false
 
 func update_stars(collected: int, total: int) -> void:
 	if _lbl_stars:
