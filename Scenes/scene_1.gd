@@ -37,6 +37,9 @@ const DEATH_Y: float = 950.0
 # Estrelas
 var _stars_left_in_level: int = 0
 
+# Blocos empurráveis (para mostrar dica de proximidade)
+var _pushable_blocks: Array = []
+
 # ============================================================
 # INICIALIZACAO
 # ============================================================
@@ -59,7 +62,8 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	_update_loopy(delta)
 	_check_death()
-	_update_moving_platforms(delta)  # <- adicione esta linha
+	_update_moving_platforms(delta)
+	_update_pushable_hints()
 	hud.update_ability(rob.get_ability_ratio(), bog.get_ability_ratio())
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -243,7 +247,8 @@ func _load_level() -> void:
 	hud.start_fade(-1, Callable())
 
 func _clear_level() -> void:
-	_moving_platforms.clear()  # <- adicione esta linha
+	_moving_platforms.clear()
+	_pushable_blocks.clear()
 	for node in level_nodes:
 		if is_instance_valid(node):
 			node.queue_free()
@@ -490,13 +495,19 @@ func _create_pushable_block(x: float, y: float, w: float, h: float) -> void:
 	var body := RigidBody2D.new()
 	body.add_to_group("pushable")
 	body.position      = Vector2(x + w / 2.0, y + h / 2.0)
-	body.mass          = 3.0
+	body.mass          = 1.0
 	body.gravity_scale = 1.2
 	body.lock_rotation = true
-	body.linear_damp   = 6.0
+	body.linear_damp   = 2.5
 	body.angular_damp  = 10.0
 	body.collision_layer = 1
 	body.collision_mask  = 1
+
+	# Sem atrito com o chão para o empurrão funcionar
+	var pmat := PhysicsMaterial.new()
+	pmat.friction = 0.0
+	pmat.bounce   = 0.0
+	body.physics_material_override = pmat
 
 	var shape := CollisionShape2D.new()
 	var rect  := RectangleShape2D.new()
@@ -531,18 +542,53 @@ func _create_pushable_block(x: float, y: float, w: float, h: float) -> void:
 	stripe.color    = Color(0.42, 0.26, 0.14)
 	body.add_child(stripe)
 
-	# Ícone "BOG" indicando que só Bog move
-	var lbl := Label.new()
-	lbl.text     = "BOG"
-	lbl.position = Vector2(-w / 2.0, -h / 2.0 - 20)
-	lbl.size     = Vector2(w, 18)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 12)
-	lbl.add_theme_color_override("font_color", Color(1.0, 0.62, 0.26))
-	body.add_child(lbl)
+	# Ícone permanente "BOG" sobre a caixa (sempre visível)
+	var tag := Label.new()
+	tag.text     = "BOG"
+	tag.position = Vector2(-w / 2.0, -h / 2.0 - 20)
+	tag.size     = Vector2(w, 18)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_theme_font_size_override("font_size", 12)
+	tag.add_theme_color_override("font_color", Color(1.0, 0.62, 0.26))
+	body.add_child(tag)
+
+	# Dica dinâmica (mostrada quando algum personagem está perto)
+	var hint := Label.new()
+	hint.text     = ""
+	hint.name     = "Hint"
+	hint.position = Vector2(-160, -h / 2.0 - 50)
+	hint.size     = Vector2(320, 24)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
+	hint.modulate.a = 0.0
+	body.add_child(hint)
 
 	add_child(body)
 	level_nodes.append(body)
+	_pushable_blocks.append(body)
+
+func _update_pushable_hints() -> void:
+	if not current_character or victory_overlay != null:
+		return
+	for block in _pushable_blocks:
+		if not is_instance_valid(block):
+			continue
+		var hint: Label = block.get_node_or_null("Hint")
+		if hint == null:
+			continue
+		var dist := block.global_position.distance_to(current_character.global_position)
+		if dist > 160.0:
+			hint.modulate.a = lerp(hint.modulate.a, 0.0, 0.15)
+			continue
+
+		if current_character == bog:
+			hint.text = "↔  Caminhe contra a caixa para empurrar"
+			hint.add_theme_color_override("font_color", Color(0.55, 1.0, 0.55))
+		else:
+			hint.text = "Troque para o BOG  [TAB]  para empurrar"
+			hint.add_theme_color_override("font_color", Color(1.0, 0.78, 0.30))
+		hint.modulate.a = lerp(hint.modulate.a, 1.0, 0.20)
 
 # ============================================================
 # ESTRELAS COLETÁVEIS
